@@ -46,6 +46,12 @@
           "microphonePermission": "Allow app to access your microphone",
           "recordAudioAndroid": true
         }
+      ],
+      [
+        "expo-document-picker",
+        {
+          "iCloudContainerEnvironment": "Production"
+        }
       ]
     ],
     "experiments": {
