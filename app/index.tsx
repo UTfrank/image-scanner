@@ -1,6 +1,8 @@
 import Camera from "@/components/camera";
 import FileUpload from "@/components/FIleUpload";
+import OnboardingView from "@/components/Onboarding";
 import { useImageTools } from "@/hooks/useImageHook";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { useAppDispatch, useAppSelector } from "@/redux/hook";
 import { clearImage, setPdfUri } from "@/redux/slices/imageSlice";
 import EvilIcons from "@expo/vector-icons/EvilIcons";
@@ -37,6 +39,12 @@ export default function HomeScreen() {
 
   const [filename, setFilename] = useState("");
   const [filenameError, setFilenameError] = useState("");
+  const {
+    hasSeenOnboarding,
+    loading: onboardingLoading,
+    completeOnboarding,
+  } = useOnboarding();
+
   const { originalUri, compressedUri, pdfUri } = useAppSelector(
     (state) => state.image
   );
@@ -130,6 +138,18 @@ export default function HomeScreen() {
       Alert.alert("Error", "Failed to save PDF. Please try again.");
     }
   };
+
+  if (onboardingLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#000" />
+      </View>
+    );
+  }
+
+  if (!hasSeenOnboarding) {
+    return <OnboardingView onComplete={completeOnboarding} />;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -265,14 +285,18 @@ export default function HomeScreen() {
           position: "absolute",
           bottom: 0,
           width: width,
-          
         }}
       >
-        <View style={{ display: "flex",
-          flexDirection: "row",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 6, width: width }}>
+        <View
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 6,
+            width: width,
+          }}
+        >
           <Text style={{ fontSize: 20, fontWeight: "700" }}>Built by </Text>
           <Image
             source={require("../assets/images/hackstacks.png")}
