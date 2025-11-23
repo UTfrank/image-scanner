@@ -1,69 +1,61 @@
-import { CameraView, CameraType, useCameraPermissions } from "expo-camera";
-import React, { useState } from "react";
-import { Button, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Link } from 'expo-router';
+import Feather from "@expo/vector-icons/Feather";
+import * as ImagePicker from "expo-image-picker";
+import React from "react";
+import {
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
+import { useAppDispatch } from "@/redux/hook";
+import { setOriginalImage } from "@/redux/slices/imageSlice";
+
+const windowWidth = Dimensions.get("window").width;
+const windowHeight = Dimensions.get("window").height;
 
 const Camera = () => {
-  const [facing, setFacing] = useState<CameraType>("back");
-  const [permission, requestPermission] = useCameraPermissions();
+  const dispatch = useAppDispatch();
 
-  if (!permission) {
-    // Camera permissions are still loading.
-    return <View />;
-  }
+  const takePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
 
-  if (!permission.granted) {
-    // Camera permissions are not granted yet.
-    return (
-      <View style={styles.container}>
-        <Text style={styles.message}>
-          We need your permission to show the camera
-        </Text>
-        <Button onPress={toggleCameraFacing} title="grant permission" />
-      </View>
-    );
-  }
+    if (!permission.granted) return;
 
-  function toggleCameraFacing() {
-    setFacing((current) => (current === "back" ? "front" : "back"));
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      dispatch(setOriginalImage(result.assets[0].uri));
+    }
   }
 
   return (
-    <View style={styles.container}>
-      <CameraView style={styles.camera} facing={facing} mirror={true} mode="picture" />
-      <TouchableOpacity
-        activeOpacity={0.5}
-        style={styles.button}
-        onPress={requestPermission}
-      >
-        <Text>Camera</Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      activeOpacity={0.5}
+      style={styles.button}
+      onPress={takePhoto}
+    >
+      <Text>
+        <Feather name="camera" size={20} color="#060606" />
+      </Text>
+    </TouchableOpacity>
   );
 };
 
 export default Camera;
 
 const styles = StyleSheet.create({
-  container: {
-    // flex: 1,
-    justifyContent: 'center',
-  },
-  message: {
-    textAlign: 'center',
-    paddingBottom: 10,
-  },
   button: {
     gap: 8,
-    marginBottom: 8,
-    backgroundColor: "aqua",
+    marginVertical: 8,
+    backgroundColor: "#EFEFEF",
     padding: 12,
     borderRadius: 6,
     display: "flex",
     flexDirection: "row",
     justifyContent: "center",
-  },
-  camera: {
-    flex: 1,
+    width: 50
   },
 });
