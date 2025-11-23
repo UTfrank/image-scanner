@@ -9,6 +9,7 @@ import Foundation from "@expo/vector-icons/Foundation";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { File, Paths } from "expo-file-system";
 import { useImageManipulator } from "expo-image-manipulator";
+import { Link } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { useMemo, useRef, useState } from "react";
 import {
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   const snapPoints = useMemo(() => ["45%"], []);
 
   const [filename, setFilename] = useState("");
+  const [filenameError, setFilenameError] = useState("");
   const { originalUri, compressedUri, pdfUri } = useAppSelector(
     (state) => state.image
   );
@@ -42,6 +44,35 @@ export default function HomeScreen() {
   const { convertToPdf } = useImageTools(context);
   const openRenameSheet = () => {
     bottomSheetRef.current?.expand();
+  };
+
+  const handleFilenameChange = (text: string) => {
+    // Comprehensive validation
+    const invalidChars = /[\/\\:*?"<>|#%&{}$!'@+`=\[\]\n\r\t\x00-\x1f\x7f]/;
+    const invalidPattern = /^\.|\.{2,}|\.$/; // starts with dot, consecutive dots, ends with dot
+    const reservedNames = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i; // Windows reserved names
+
+    if (!text) {
+      setFilenameError("");
+    } else if (invalidChars.test(text)) {
+      setFilenameError(
+        "Invalid characters detected. Use only letters, numbers, spaces, - and _"
+      );
+    } else if (invalidPattern.test(text)) {
+      setFilenameError(
+        "Filename cannot start/end with dot or have consecutive dots"
+      );
+    } else if (reservedNames.test(text.trim())) {
+      setFilenameError("This filename is reserved by the system");
+    } else if (text.trim().length === 0) {
+      setFilenameError("Filename cannot be only whitespace");
+    } else if (text.length > 255) {
+      setFilenameError("Filename is too long (max 255 characters)");
+    } else {
+      setFilenameError("");
+    }
+
+    setFilename(text);
   };
 
   const handleConvertPdf = async () => {
@@ -71,11 +102,11 @@ export default function HomeScreen() {
     try {
       const newName = fileName.replace(/\s+/g, "_") + ".pdf";
 
-      const cacheDir = Paths.cache?.uri || Paths.document?.uri;
-      const renamedFileUri = `${cacheDir}/${newName}`;
+      const cacheDir = Paths.cache;
+      const renamedFile = new File(cacheDir, newName);
+      // const renamedFile = new File(renamedFileUri);
 
       const sourceFile = new File(pdfUri);
-      const renamedFile = new File(renamedFileUri);
 
       if (await renamedFile.exists) {
         await renamedFile.delete();
@@ -92,6 +123,7 @@ export default function HomeScreen() {
         Alert.alert("Success!", "PDF is ready to download");
       }
 
+      setFilename("");
       bottomSheetRef.current?.close();
     } catch (error) {
       console.error("Error saving PDF:", error);
@@ -225,6 +257,29 @@ export default function HomeScreen() {
           </View>
         )}
       </View>
+      <Link
+        href="https://hackstacks.com"
+        style={{
+          padding: 10,
+          backgroundColor: "white",
+          position: "absolute",
+          bottom: 0,
+          width: width,
+          
+        }}
+      >
+        <View style={{ display: "flex",
+          flexDirection: "row",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 6, width: width }}>
+          <Text style={{ fontSize: 20, fontWeight: "700" }}>Built by </Text>
+          <Image
+            source={require("../assets/images/hackstacks.png")}
+            style={{ width: 170, height: 20 }}
+          />
+        </View>
+      </Link>
       <BottomSheet
         ref={bottomSheetRef}
         index={-1}
@@ -237,9 +292,16 @@ export default function HomeScreen() {
           <TextInput
             placeholder="Enter filename"
             value={filename}
-            onChangeText={setFilename}
-            style={styles.sheetInput}
+            onChangeText={handleFilenameChange}
+            style={[
+              styles.sheetInput,
+              filenameError ? styles.sheetInputError : null,
+            ]}
           />
+
+          {filenameError && (
+            <Text style={styles.errorText}>{filenameError}</Text>
+          )}
 
           <View style={styles.sheetButtons}>
             <TouchableOpacity
@@ -252,6 +314,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.sheetSave}
               onPress={() => handleSavePdf(filename || "")}
+              disabled={!!filenameError}
             >
               <Text style={{ color: "#fff" }}>Save</Text>
             </TouchableOpacity>
@@ -319,5 +382,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 18,
     borderRadius: 8,
+  },
+  sheetInputError: {
+    borderColor: "red",
+    borderWidth: 2,
+  },
+  errorText: {
+    color: "red",
+    fontSize: 12,
+    marginTop: -20,
+    marginBottom: 20,
+  },
+  sheetSaveDisabled: {
+    backgroundColor: "#ccc",
+    opacity: 0.5,
   },
 });
