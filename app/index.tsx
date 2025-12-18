@@ -9,6 +9,7 @@ import EvilIcons from "@expo/vector-icons/EvilIcons";
 import Feather from "@expo/vector-icons/Feather";
 import Foundation from "@expo/vector-icons/Foundation";
 import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import { Picker } from "@react-native-picker/picker";
 import { File, Paths } from "expo-file-system";
 import { useImageManipulator } from "expo-image-manipulator";
 import { Link } from "expo-router";
@@ -27,6 +28,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { NIGERIAN_STATES } from "../constants/states";
 
 const height = Dimensions.get("window").height;
 const width = Dimensions.get("window").width;
@@ -35,7 +37,11 @@ export default function HomeScreen() {
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["45%"], []);
+  const snapPoints = useMemo(() => ["45%", "75%"], []);
+
+  const [state, setState] = useState("");
+  const [batch, setBatch] = useState("");
+  const [stateCode, setStateCode] = useState("");
 
   const [filename, setFilename] = useState("");
   const [filenameError, setFilenameError] = useState("");
@@ -53,6 +59,91 @@ export default function HomeScreen() {
   const openRenameSheet = () => {
     bottomSheetRef.current?.expand();
   };
+
+  const STATE_CODE_REGEX = /^[0-9]{4}$/;
+  const BATCH_REGEX = /^[0-9]{2}[A-Za-z]{1}$/;
+
+  const isAlphaNumeric = (value: string) => /^[a-zA-Z0-9]+$/.test(value);
+
+  const isBatchValid = BATCH_REGEX.test(batch);
+
+  const isStateCodeValid = STATE_CODE_REGEX.test(stateCode);
+
+  const handleBatchChange = (text: string) => {
+    // Remove non-alphanumeric
+    let sanitized = text.replace(/[^a-zA-Z0-9]/g, "");
+
+    // Max length = 3
+    sanitized = sanitized.slice(0, 3);
+
+    // Force format while typing
+    if (sanitized.length <= 2) {
+      // First two must be digits
+      sanitized = sanitized.replace(/[^0-9]/g, "");
+    } else {
+      // Third must be a letter
+      sanitized =
+        sanitized.slice(0, 2).replace(/[^0-9]/g, "") +
+        sanitized
+          .slice(2)
+          .replace(/[^a-zA-Z]/g, "")
+          .toUpperCase();
+    }
+
+    setBatch(sanitized);
+  };
+
+  const handleStateCodeChange = (text: string) => {
+    // Keep digits only
+    const digitsOnly = text.replace(/[^0-9]/g, "");
+
+    // Limit to 4 digits
+    setStateCode(digitsOnly.slice(0, 4));
+  };
+
+  const isFormValid = isBatchValid && isStateCodeValid;
+
+
+  const errors = {
+    state: !state ? "State is required" : null,
+    batch: !batch
+      ? "Batch is required"
+      : !isAlphaNumeric(batch)
+      ? "Only letters and numbers allowed"
+      : null,
+    stateCode: !stateCode
+      ? "State code is required"
+      : !isAlphaNumeric(stateCode)
+      ? "Only letters and numbers allowed"
+      : null,
+  };
+
+  // const isFormValid = !errors.state && !errors.batch && !errors.stateCode;
+
+  const allowAlphaNumeric = (text: string) =>
+    text.replace(/[^a-zA-Z0-9 ]/g, "");
+
+  const sanitize = (value: string) =>
+    value
+      .trim()
+      .replace(/\s+/g, "") // remove spaces
+      .replace(/[^a-zA-Z0-9]/g, "");
+
+  const buildFilenamePreview = (
+    state: string,
+    batch: string,
+    stateCode: string
+  ) => {
+    if (!state || !batch || !stateCode) return "—/—/—.pdf";
+
+    return `${state}/${batch}/${stateCode}.pdf`;
+  };
+
+  const buildFinalFilename = (
+    state: string,
+    batch: string,
+    stateCode: string
+  ) => `${sanitize(state)}_${sanitize(batch)}_${sanitize(stateCode)}.pdf`;
 
   const handleFilenameChange = (text: string) => {
     // Comprehensive validation
@@ -96,19 +187,21 @@ export default function HomeScreen() {
     }
   };
 
-  const handleSavePdf = async (fileName: string) => {
-    if (!fileName || fileName === "") {
-      Alert.alert("Error", "Please enter a fileName.");
-      return;
-    }
-
+  const handleSavePdf = async () => {
     if (!pdfUri) {
       Alert.alert("Error", "No PDF to save. Please convert the image first.");
       return;
     }
 
+    const newName = buildFinalFilename(state, batch, stateCode);
+
+    if (!newName) {
+      Alert.alert("Error", "Please complete all fields.");
+      return;
+    }
+
     try {
-      const newName = fileName.replace(/\s+/g, "_") + ".pdf";
+      // const newName = fileName.replace(/\s+/g, "_") + ".pdf";
 
       const cacheDir = Paths.cache;
       const renamedFile = new File(cacheDir, newName);
@@ -131,7 +224,9 @@ export default function HomeScreen() {
         Alert.alert("Success!", "PDF is ready to download");
       }
 
-      setFilename("");
+      setState("");
+      setBatch("");
+      setStateCode("");
       bottomSheetRef.current?.close();
     } catch (error) {
       console.error("Error saving PDF:", error);
@@ -236,7 +331,7 @@ export default function HomeScreen() {
                   onPress={() => dispatch(clearImage())}
                 >
                   <EvilIcons name="trash" size={24} color="red" />
-                  <Text style={{ color: "red" }}>Delete</Text>
+                  <Text style={{ color: "red" }}>Reset</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -248,7 +343,7 @@ export default function HomeScreen() {
                   {loading ? (
                     <>
                       <ActivityIndicator size={20} />
-                      <Text>Converting...</Text>
+                      <Text>Saving...</Text>
                     </>
                   ) : (
                     <>
@@ -257,7 +352,7 @@ export default function HomeScreen() {
                         size={24}
                         color="black"
                       />
-                      <Text>Convert</Text>
+                      <Text>Save</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -313,19 +408,62 @@ export default function HomeScreen() {
         <BottomSheetView style={styles.sheetContent}>
           <Text style={styles.sheetTitle}>Save PDF As</Text>
 
-          <TextInput
-            placeholder="Enter filename"
-            value={filename}
-            onChangeText={handleFilenameChange}
-            style={[
-              styles.sheetInput,
-              filenameError ? styles.sheetInputError : null,
-            ]}
-          />
+          <View style={{ marginBottom: 20 }}>
+            <Text style={styles.label}>State</Text>
+            <View style={styles.pickerWrapper}>
+              <Picker selectedValue={state} onValueChange={setState}>
+                <Picker.Item label="Select State" value="" />
+                {NIGERIAN_STATES.map((item) => (
+                  <Picker.Item key={item} label={item} value={item} />
+                ))}
+              </Picker>
+            </View>
+            {errors.state && (
+              <Text className="text-xs text-red-500 mt-1">{errors.state}</Text>
+            )}
+          </View>
 
-          {filenameError && (
-            <Text style={styles.errorText}>{filenameError}</Text>
-          )}
+          <View style={{ marginBottom: 20 }}>
+            <Text style={styles.label}>Batch</Text>
+            <TextInput
+              value={batch}
+              placeholder="e.g. 25A"
+              onChangeText={handleBatchChange}
+              style={styles.input}
+            />
+            {batch.length === 3 && !isBatchValid && (
+              <Text style={styles.errorText}>
+                Batch must be 2 numbers followed by 1 letter (e.g. 25A)
+              </Text>
+            )}
+          </View>
+
+          <View style={{ marginBottom: 20 }}>
+            <Text style={styles.label}>State Code</Text>
+            <TextInput
+              value={stateCode}
+              placeholder="e.g. 0001"
+              onChangeText={handleStateCodeChange}
+              style={styles.input}
+              maxLength={4}
+              keyboardType="numeric"
+            />
+            {stateCode.length > 0 && !isStateCodeValid && (
+              <Text style={styles.errorText}>
+                State code must be exactly 4 digits (e.g. 0001)
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.previewContainer}>
+            <Text style={styles.previewLabel}>Filename Preview</Text>
+
+            <View style={styles.previewBox}>
+              <Text style={styles.previewText}>
+                {buildFilenamePreview(state, batch, stateCode)}
+              </Text>
+            </View>
+          </View>
 
           <View style={styles.sheetButtons}>
             <TouchableOpacity
@@ -337,8 +475,8 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               style={styles.sheetSave}
-              onPress={() => handleSavePdf(filename || "")}
-              disabled={!!filenameError}
+              onPress={() => handleSavePdf()}
+              disabled={!isFormValid}
             >
               <Text style={{ color: "#fff" }}>Save</Text>
             </TouchableOpacity>
@@ -414,11 +552,48 @@ const styles = StyleSheet.create({
   errorText: {
     color: "red",
     fontSize: 12,
-    marginTop: -20,
+    marginTop: 0,
     marginBottom: 20,
   },
   sheetSaveDisabled: {
     backgroundColor: "#ccc",
     opacity: 0.5,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  pickerWrapper: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  previewContainer: {
+    marginTop: 16,
+  },
+  previewLabel: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 6,
+  },
+  previewBox: {
+    backgroundColor: "#F6F6F6",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 20,
+  },
+  previewText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });
